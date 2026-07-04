@@ -5,6 +5,7 @@ from agent.config import agent_settings
 from langchain_groq import ChatGroq
 from agent.prompts.validator import VALIDATOR_HUMAN, VALIDATOR_SYSTEM
 import os
+from agent.tools.filesystem import write_file
 
 class ValidatorOutput(BaseModel):
   result: Literal['approved', 'needs_revision']
@@ -13,15 +14,26 @@ class ValidatorOutput(BaseModel):
 
 
 def validator_node(state: AgentState ) -> dict:
-  middleware_code = state.get('generated_middleware', "")
-  test_code = state.get('generated_tests', "")
+  # middleware_code = state.get('generated_middleware', "")
+  # test_code = state.get('generated_tests', "")
 
-  if not middleware_code or not test_code:
+  # if not middleware_code or not test_code:
+  #   return {
+  #     "validation_result": "needs_revision",
+  #     "validation_feedback": "One or more sections (middleware_code, test_code) were empty. Regenerate all three sections with proper XML tags.",
+  #   }
+
+  modified_main = state.get("modified_main", "")
+
+  if not modified_main:
     return {
       "validation_result": "needs_revision",
-      "validation_feedback": "One or more sections (middleware_code, test_code) were empty. Regenerate all three sections with proper XML tags.",
+      "validation_feedback": (
+        "modified_main was empty. Output the complete file contents "
+        "inside <modified_main>...</modified_main> tags."
+        )
     }
-    
+
   llm = ChatGroq(
     model=agent_settings.groq_model,
     api_key=agent_settings.groq_api_key,
@@ -31,8 +43,9 @@ def validator_node(state: AgentState ) -> dict:
   review: ValidatorOutput = llm.with_structured_output(ValidatorOutput).invoke([
     {'role': 'system', 'content': VALIDATOR_SYSTEM},
     {'role': 'user', 'content': VALIDATOR_HUMAN.format(
-      middleware_code=middleware_code,
-      test_code=test_code,
+      # middleware_code=middleware_code,
+      # test_code=test_code,
+      modified_main=modified_main
     )},
   ])
 
@@ -41,7 +54,7 @@ def validator_node(state: AgentState ) -> dict:
     print(f"  ✗ {issue}")
 
   if review.result == "approved":
-    _write_files(state, middleware_code, test_code)
+    _write_files(state)
 
   return {
     'validation_result': review.result,
@@ -49,23 +62,23 @@ def validator_node(state: AgentState ) -> dict:
   }
 
 
-def _write_files(state: AgentState, middleware_code: str, test_code: str) -> None:
+def _write_files(state: AgentState) -> None:
   target = state['target_path']
   context = state['project_context']
   modified_main = state.get('modified_main', '')
 
   write_file.invoke({
     "path": os.path.join(target, 'rate_limit_middleware.py'),
-    "content": middleware_code
+    "content": state['generated_middleware']
   })
   write_file.invoke({
     'path': os.path.join(target, 'test_rate_limit.py'),
-    'content': test_code
+    'content': state['generated_tests']
   })
   if modified_main:
     write_file.invoke({
       'path': os.path.join(target, context.main_file),
-      'content': modified_main
+      'content': state['modified_main']
     })
 
   print(f"  → rate_limit_middleware.py")
@@ -78,5 +91,7 @@ def route_on_validation(state: AgentState) -> str:
     return 'approved'
   if state.get('revision_count', 0) >= agent_settings.max_revisions:
     print(f"⚠ Max revisions reached — forcing exit")
+    if state.get("modified_main"):
+      _write_files(state)
     return 'approved'
   return 'needs_revision'
