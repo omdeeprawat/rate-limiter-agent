@@ -9,16 +9,10 @@ from rate_limiter.api.routes import router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("REDIS_URL =", settings.redis_url)
     redis_client = aioredis.from_url(
         settings.redis_url,
         decode_responses=True,
-        socket_connect_timeout=30,
-        socket_timeout=30,
-        health_check_interval=30,
     )
-    await redis_client.ping()
-    print("Redis connection successful")
     app.state.bucket = RedisTokenBucket(
         redis_client=redis_client,
         max_tokens=settings.max_tokens,
