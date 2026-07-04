@@ -9,6 +9,7 @@ from rate_limiter.api.routes import router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("REDIS_URL =", settings.redis_url)
     redis_client = aioredis.from_url(
         settings.redis_url,
         decode_responses=True,
