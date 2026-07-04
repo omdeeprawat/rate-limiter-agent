@@ -5,18 +5,20 @@ The Rate Limiter Service runs separately and exposes:
   Returns: {{"status": "ALLOW"}} or {{"status": "DENY"}}
   Headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, Retry-After
 
-Generate three fields:
+Generate exactly three sections wrapped in XML tags:
 
-middleware_code — full contents of rate_limit_middleware.py:
+<middleware_code>  
+full contents of rate_limit_middleware.py:
   - Class RateLimitMiddleware extending BaseHTTPMiddleware
   - Extract client_id from request.client.host
   - Call rate limiter with httpx.AsyncClient (async, inside async with block)
-  - Return 429 JSONResponse with all rate limit headers on DENY
-  - Forward X-RateLimit-* headers onto the real response on ALLOW
-  - Call call_next(request) only on ALLOW path
+  - On DENY: return 429 JSONResponse with all X-RateLimit-* and Retry-After headers
+  - On ALLOW: call await call_next(request), forward X-RateLimit-* headers onto response
   - Full imports, type hints, no placeholders
+</middleware_code>
 
-test_code — full contents of test_rate_limit.py:
+<test_code>  
+full contents of test_rate_limit.py:
   - Build a minimal FastAPI test app with RateLimitMiddleware attached
   - Use pytest and httpx.AsyncClient with anyio backend
   - Test: first {max_tokens} requests return 200
@@ -24,12 +26,17 @@ test_code — full contents of test_rate_limit.py:
   - Test: X-RateLimit-Remaining decrements correctly
   - Test: X-RateLimit-Limit header is present on every response
   - All tests must pass with: pytest test_rate_limit.py -v
+</test_code>
 
-modified_main — the complete modified contents of main.py:
+<modified_main> 
+the complete modified contents of main.py:
   - Add: from rate_limit_middleware import RateLimitMiddleware
   - Add: app.add_middleware(RateLimitMiddleware) immediately after app = FastAPI(...)
   - Keep every other line exactly as it was
-  - Do not add comments or change formatting"""
+  - Do not add comments or change formatting
+
+</modified_main>
+Output ONLY the three tagged sections. No explanation, no prose, no markdown outside the tags."""
 
 CODEGEN_HUMAN = """Generate rate limiting integration for this FastAPI project.
 
@@ -45,6 +52,4 @@ Project context:
 Current main.py contents:
 {main_file_content}
 
-{revision_context}
-
-Generate middleware_code, test_code, and modified_main."""
+{revision_context}"""
