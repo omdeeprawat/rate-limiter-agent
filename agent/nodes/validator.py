@@ -16,6 +16,12 @@ def validator_node(state: AgentState ) -> dict:
   middleware_code = state.get('generated_middleware', "")
   test_code = state.get('generated_tests', "")
 
+  if not middleware_code or not test_code:
+    return {
+      "validation_result": "needs_revision",
+      "validation_feedback": "One or more sections (middleware_code, test_code) were empty. Regenerate all three sections with proper XML tags.",
+    }
+    
   llm = ChatGroq(
     model=agent_settings.groq_model,
     api_key=agent_settings.groq_api_key,
